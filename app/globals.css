@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #faf8f5;
+  --surface: #ffffff;
+  --ink: #2c2825;
+  --ink2: #8a7f75;
+  --ink3: #c4bab0;
+  --accent: #e07a5f;
+  --accent2: #81b29a;
+  --warn: #f2cc8f;
+  --border: #e8e2d9;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Fabric.js canvas cursor fix */
+.canvas-container { border-radius: 4px; }
+
+/* Bounce animation for loading dots */
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+.animate-bounce { animation: bounce 1.1s infinite; }
+.animate-bounce-delay-1 { animation-delay: 0.18s; }
+.animate-bounce-delay-2 { animation-delay: 0.36s; }
+
+/* Float animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.animate-float { animation: float 2s ease-in-out infinite; }
+
+/* Shake animation */
+@keyframes shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+.animate-shake { animation: shake 0.5s ease-in-out; }

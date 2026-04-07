@@ -1,0 +1,40 @@
+{
+  "name": "unfold",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@supabase/supabase-js": "^2.47.0",
+    "drizzle-orm": "^0.38.0",
+    "fabric": "^5.3.0",
+    "framer-motion": "^11.0.0",
+    "next": "14.2.0",
+    "postgres": "^3.4.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "replicate": "^0.34.0",
+    "sql.js": "^1.11.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/fabric": "^5.3.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/sql.js": "^1.4.11",
+    "autoprefixer": "^10.4.0",
+    "drizzle-kit": "^0.30.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.0.0"
+  }
+}

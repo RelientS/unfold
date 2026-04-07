@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unfold · 电子手帐</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;500&family=Noto+Sans+SC:wght@300;400;500&family=ZCOOL+XiaoWei&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<style>
+:root{
+  --bg:#faf8f5;--surface:#fff;--ink:#2c2825;--ink2:#8a7f75;--ink3:#c4bab0;
+  --accent:#e07a5f;--accent2:#81b29a;--warn:#f2cc8f;--border:#e8e2d9;
+  --radius:14px;--radius-sm:8px;--shadow:0 2px 12px rgba(44,40,37,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;font-weight:300;height:100vh;display:flex;overflow:hidden;font-size:14px;}
+
+/* ===== LAYOUT ===== */
+.app{display:flex;height:100vh;overflow:hidden;}
+.app.hidden{display:none;}
+
+/* ===== SIDEBAR ===== */
+.sidebar{width:64px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:8px;flex-shrink:0;}
+.sb-btn{width:44px;height:44px;border-radius:12px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:all .15s;color:var(--ink2);position:relative;}
+.sb-btn:hover{background:var(--bg);color:var(--ink);}
+.sb-btn.active{background:var(--accent);color:#fff;}
+.sb-btn .tip{position:absolute;left:56px;background:var(--ink);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:100;}
+.sb-btn:hover .tip{opacity:1;}
+.sb-logo{margin-top:auto;font-family:'Noto Serif SC',serif;font-size:11px;letter-spacing:2px;color:var(--ink3);writing-mode:vertical-rl;margin-bottom:10px;}
+
+/* ===== CALENDAR VIEW ===== */
+.cal-view{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:32px;gap:20px;}
+.cal-header{display:flex;align-items:center;justify-content:space-between;}
+.cal-header h2{font-family:'Noto Serif SC',serif;font-size:22px;font-weight:400;letter-spacing:2px;}
+.cal-nav{display:flex;gap:8px;}
+.cal-nav button{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--ink2);transition:all .15s;}
+.cal-nav button:hover{border-color:var(--accent);color:var(--accent);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;flex:1;}
+.cal-dow{text-align:center;font-size:11px;color:var(--ink3);letter-spacing:1px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.cal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius);cursor:pointer;transition:all .18s;padding:8px;min-height:80px;background:var(--surface);border:1px solid transparent;position:relative;overflow:hidden;}
+.cal-cell:hover{border-color:var(--border);box-shadow:var(--shadow);transform:translateY(-2px);}
+.cal-cell.today{border:2px solid var(--accent);}
+.cal-cell.today .cd-num{color:var(--accent);font-weight:500;}
+.cal-cell.has-entry .cd-thumb{width:36px;height:36px;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px;margin-top:4px;}
+.cal-cell.has-entry.has-capsule::after{content:'✉';position:absolute;top:4px;right:5px;font-size:10px;color:var(--warn);}
+.cd-num{font-size:14px;color:var(--ink);margin-bottom:2px;}
+.cd-weather{font-size:12px;margin-top:2px;}
+.cal-cell-empty{background:transparent;cursor:default;}
+.cal-cell-empty:hover{transform:none;box-shadow:none;border-color:transparent;}
+
+/* ===== CANVAS EDITOR ===== */
+.editor-view{flex:1;display:none;flex-direction:column;overflow:hidden;background:var(--bg);}
+/* Toggle via JS */
+.editor-view.active{display:flex;}
+
+.editor-top{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;}
+.et-date{font-family:'Noto Serif SC',serif;font-size:16px;flex:1;}
+.et-date span{font-size:12px;color:var(--ink3);margin-left:8px;}
+.et-back{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--ink2);transition:all .15s;}
+.et-back:hover{border-color:var(--accent);color:var(--accent);}
+
+.editor-body{flex:1;display:flex;overflow:hidden;}
+
+/* TOOLBAR */
+.toolbar{width:56px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;}
+.tool-btn{width:42px;height:42px;border-radius:10px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .15s;color:var(--ink2);position:relative;}
+.tool-btn:hover{background:var(--bg);color:var(--ink);}
+.tool-btn.on{background:var(--accent);color:#fff;}
+.tool-btn .tip{position:absolute;left:52px;background:var(--ink);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:200;}
+.tool-btn:hover .tip{opacity:1;}
+
+/* CANVAS AREA */
+.canvas-area{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:32px;background:var(--bg);}
+.canvas-wrap{position:relative;box-shadow:var(--shadow);border-radius:4px;overflow:hidden;transform-origin:center;}
+#mainCanvas{border-radius:4px;}
+
+/* RIGHT PANELS */
+.right-panel{width:260px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;flex-shrink:0;}
+.right-panel.open{display:flex;}
+
+/* STICKER PANEL */
+.panel-section{padding:16px;border-bottom:1px solid var(--border);}
+.ps-title{font-size:10px;letter-spacing:1.5px;color:var(--ink3);text-transform:uppercase;margin-bottom:10px;}
+.sticker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.sticker-item{aspect-ratio:1;border-radius:8px;background:var(--bg);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;transition:all .15s;}
+.sticker-item:hover{border-color:var(--accent);transform:scale(1.1);}
+
+/* WEATHER/MOOD */
+.mood-row{display:flex;gap:8px;flex-wrap:wrap;}
+.mood-chip{padding:6px 12px;border-radius:20px;border:1px solid var(--border);font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;}
+.mood-chip:hover{border-color:var(--accent);color:var(--accent);}
+.mood-chip.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* AI GENERATE */
+.ai-gen{display:flex;flex-direction:column;gap:8px;}
+.ai-gen input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s;}
+.ai-gen input:focus{border-color:var(--accent);}
+.ai-gen input::placeholder{color:var(--ink3);}
+
+/* BUNNY */
+.bunny{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+.bunny-idle{width:52px;height:52px;background:var(--surface);border-radius:50%;border:2px solid var(--ink);box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:26px;transition:all .2s;}
+.bunny-idle:hover{transform:scale(1.1);}
+.bunny-idle.shake{animation:shake .5s ease-in-out;}
+@keyframes shake{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+
+.bunny-chat{display:none;flex-direction:column;gap:8px;max-width:260px;}
+.bunny-chat.open{display:flex;}
+.bc-bubble{background:var(--surface);border:1px solid var(--border);border-radius:16px;border-bottom-left-radius:4px;padding:12px 16px;font-size:13px;line-height:1.8;box-shadow:var(--shadow);white-space:pre-wrap;}
+.bc-input-row{display:flex;gap:6px;}
+.bc-input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 14px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s;}
+.bc-input:focus{border-color:var(--accent);}
+.bc-send{background:var(--accent);border:none;border-radius:12px;color:#fff;padding:8px 14px;font-size:13px;cursor:pointer;}
+
+/* CAPSULE */
+.capsule-modal{display:none;position:fixed;inset:0;background:rgba(44,40,37,.4);z-index:400;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.capsule-modal.open{display:flex;}
+.cm-box{background:var(--surface);border-radius:var(--radius);width:480px;max-height:80vh;overflow-y:auto;padding:32px;box-shadow:0 8px 40px rgba(44,40,37,.15);}
+.cm-box h3{font-family:'Noto Serif SC',serif;font-size:17px;font-weight:400;margin-bottom:4px;}
+.cm-box .cm-sub{font-size:12px;color:var(--ink3);margin-bottom:20px;}
+.cm-field{margin-bottom:16px;}
+.cm-label{font-size:11px;color:var(--ink2);margin-bottom:6px;display:block;}
+.cm-textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:'Noto Serif SC',serif;font-size:14px;line-height:1.8;resize:none;outline:none;min-height:100px;transition:border-color .15s;}
+.cm-textarea:focus{border-color:var(--accent);}
+.cm-select{display:flex;gap:6px;flex-wrap:wrap;}
+.cm-opt{padding:6px 14px;border-radius:20px;border:1px solid var(--border);font-size:12px;cursor:pointer;transition:all .15s;}
+.cm-opt:hover{border-color:var(--accent);}
+.cm-opt.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.cm-row{display:flex;gap:8px;align-items:center;margin-top:8px;}
+.cm-date-input{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:inherit;font-size:13px;outline:none;transition:border-color .15s;}
+.cm-date-input:focus{border-color:var(--accent);}
+.cm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+.btn{padding:8px 18px;border-radius:var(--radius-sm);border:none;cursor:pointer;font-family:inherit;font-size:13px;transition:all .15s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#c96a52;}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--ink2);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 20px;max-width:320px;box-shadow:var(--shadow);z-index:500;opacity:0;transition:all .3s;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+.t-body{font-size:13px;color:var(--ink2);line-height:1.6;font-family:'Noto Serif SC',serif;}
+
+/* CAPSULE UNSEAL */
+.unseal-view{display:none;position:fixed;inset:0;background:var(--bg);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:32px;}
+.unseal-view.open{display:flex;}
+.us-envelope{font-size:64px;margin-bottom:24px;animation:float 2s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.us-message{background:var(--surface);border-radius:var(--radius);padding:28px 36px;max-width:440px;text-align:center;box-shadow:var(--shadow);margin-bottom:24px;}
+.us-message p{font-family:'Noto Serif SC',serif;font-size:15px;line-height:2;white-space:pre-wrap;}
+.us-label{font-size:11px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.us-question{background:var(--accent);color:#fff;border-radius:var(--radius);padding:20px 28px;max-width:400px;font-family:'Noto Serif SC',serif;font-size:14px;line-height:1.9;white-space:pre-wrap;margin-bottom:20px;}
+
+/* LOADING */
+.dots{display:flex;gap:5px;padding:20px;justify-content:center;}
+.dots span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.1s infinite;}
+.dots span:nth-child(2){animation-delay:.18s}
+.dots span:nth-child(3){animation-delay:.36s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+
+<!-- ===== APP ===== -->
+<div class="app" id="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <button class="sb-btn active" id="btn-cal" onclick="showView('cal')">
+      <span>◫</span>
+      <span class="tip">月历</span>
+    </button>
+    <button class="sb-btn" id="btn-canvas" onclick="showView('editor')">
+      <span>✎</span>
+      <span class="tip">今日画布</span>
+    </button>
+    <div class="sb-logo">UNFOLD</div>
+  </div>
+
+  <!-- CALENDAR VIEW -->
+  <div class="cal-view" id="cal-view">
+    <div class="cal-header">
+      <h2 id="cal-title">2026 年 4 月</h2>
+      <div class="cal-nav">
+        <button onclick="calNav(-1)">◀</button>
+        <button onclick="calNav(0)">今天</button>
+        <button onclick="calNav(1)">▶</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="cal-grid">
+      <div class="cal-dow">日</div><div class="cal-dow">一</div><div class="cal-dow">二</div>
+      <div class="cal-dow">三</div><div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div>
+    </div>
+  </div>
+
+  <!-- EDITOR VIEW -->
+  <div class="editor-view" id="editor-view">
+    <div class="editor-top">
+      <div class="et-date" id="et-date">2026 年 4 月 7 日 <span>星期二</span></div>
+      <button class="et-back" onclick="saveAndBack()">← 返回月历</button>
+      <button class="et-back" onclick="sealCapsule()">✉ 封存时刻</button>
+    </div>
+    <div class="editor-body">
+      <div class="toolbar">
+        <button class="tool-btn" id="tl-text" onclick="setTool('text')"><span>Aa</span><span class="tip">文字</span></button>
+        <button class="tool-btn" id="tl-image" onclick="setTool('image')"><span>🖼</span><span class="tip">图片</span></button>
+        <button class="tool-btn" id="tl-sticker" onclick="togglePanel('sticker')"><span>⭐</span><span class="tip">贴纸</span></button>
+        <button class="tool-btn" id="tl-ai" onclick="togglePanel('ai')"><span>✨</span><span class="tip">AI贴纸</span></button>
+        <button class="tool-btn" id="tl-weather" onclick="togglePanel('weather')"><span>🌤</span><span class="tip">天气心情</span></button>
+        <div style="flex:1"></div>
+        <button class="tool-btn" onclick="deleteSelected()"><span>🗑</span><span class="tip">删除</span></button>
+        <button class="tool-btn" onclick="undo()"><span>↩</span><span class="tip">撤销</span></button>
+        <button class="tool-btn" onclick="redo()"><span>↪</span><span class="tip">重做</span></button>
+      </div>
+      <div class="canvas-area">
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="mainCanvas"></canvas>
+        </div>
+      </div>
+      <div class="right-panel" id="rightPanel">
+        <!-- Sticker panel content injected by JS -->
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- CAPSULE MODAL -->
+<div class="capsule-modal" id="capsuleModal">
+  <div class="cm-box">
+    <h3>✉ 封存时刻</h3>
+    <div class="cm-sub">亲手决定，什么值得被未来的自己看见</div>
+    <div class="cm-field">
+      <label class="cm-label">写给未来自己的话（可选）</label>
+      <textarea class="cm-textarea" id="cmMsg" placeholder="三个月后的你，会看到这段话……"></textarea>
+    </div>
+    <div class="cm-field">
+      <label class="cm-label">希望兔子在未来问你一个问题（可选）</label>
+      <textarea class="cm-textarea" id="cmQ" placeholder="比如：现在的你，实现当时的愿望了吗？"></textarea>
+    </div>
+    <div class="cm-field">
+      <label class="cm-label">拆封时间</label>
+      <div class="cm-select" id="cmSel">
+        <div class="cm-opt on" data-v="month">1个月后</div>
+        <div class="cm-opt" data-v="3month">3个月后</div>
+        <div class="cm-opt" data-v="6month">6个月后</div>
+        <div class="cm-opt" data-v="year">1年后</div>
+        <div class="cm-opt" data-v="custom">自定义</div>
+      </div>
+      <div class="cm-row" id="cmDateRow" style="display:none">
+        <input type="date" class="cm-date-input" id="cmDate">
+      </div>
+    </div>
+    <div class="cm-actions">
+      <button class="btn btn-ghost" onclick="closeCapsuleModal()">取消</button>
+      <button class="btn btn-primary" onclick="confirmCapsule()">封存</button>
+    </div>
+  </div>
+</div>
+
+<!-- UNSEAL VIEW -->
+<div class="unseal-view" id="unseal-view">
+  <div class="us-envelope">✉</div>
+  <div class="us-label">来自过去的信</div>
+  <div class="us-message" id="usMsg"><p></p></div>
+  <div id="usQuestion" style="display:none">
+    <div class="us-label">兔子的问题</div>
+    <div class="us-question" id="usQ"></div>
+  </div>
+  <button class="btn btn-primary" onclick="closeUnseal()">打开画布，继续写</button>
+</div>
+
+<!-- BUNNY -->
+<div class="bunny" id="bunny">
+  <div class="bunny-chat" id="bunnyChat">
+    <div class="bc-bubble" id="bcBubble">你好，我在这里。今天想聊什么？</div>
+    <div class="bc-input-row">
+      <input class="bc-input" id="bcInput" placeholder="说说你的感受……" onkeydown="bcKey(event)">
+      <button class="bc-send" onclick="bcSend()">发送</button>
+    </div>
+  </div>
+  <div class="bunny-idle" id="bunnyIdle" onclick="toggleBunny()">🐰</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"><div class="t-body" id="tBody"></div></div>
+
+<script>
+/* =========================================================
+   UNFOLD · 电子手帐 — Core Logic
+   ========================================================= */
+
+// --- State ---
+let currentView = 'cal';
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
+let selectedDate = null; // Date object for the entry being edited
+let fabricCanvas = null;
+let currentTool = null;
+let entries = {}; // keyed by "YYYY-MM-DD"
+let capsules = {}; // keyed by "YYYY-MM-DD"
+let activePanel = null;
+
+// --- Persistence ---
+async function loadData() {
+  try {
+    const e = await dbGet('entries');
+    if (e) entries = JSON.parse(e);
+    const c = await dbGet('capsules');
+    if (c) capsules = JSON.parse(c);
+  } catch(err) { console.warn('loadData:', err); }
+}
+async function saveData() {
+  try {
+    await dbSet('entries', JSON.stringify(entries));
+    await dbSet('capsules', JSON.stringify(capsules));
+  } catch(err) { console.warn('saveData:', err); }
+}
+function dbGet(k) { return new Promise((res,rej) => {
+  const r = indexedDB.open('unfold', 1);
+  r.onupgradeneeded = e => e.target.result.createObjectStore('s',{});
+  r.onsuccess = e => { try { const g = e.target.result.get(k); g.onsuccess = () => res(g.result); g.onerror = () => res(null); } catch(ex) { res(null); } };
+  r.onerror = () => res(null);
+}); }
+function dbSet(k, v) { return new Promise((res) => {
+  const r = indexedDB.open('unfold', 1);
+  r.onupgradeneeded = e => e.target.result.createObjectStore('s',{});
+  r.onsuccess = e => { try { const s = e.target.result; const op = s.put(v, k); op.onsuccess = () => res(); op.onerror = () => res(); } catch(ex) { res(); } };
+  r.onerror = () => res();
+}); }
+
+// --- Init ---
+async function init() {
+  await loadData();
+  renderCalendar();
+  checkDueCapsules();
+  // Auto-check capsules every minute
+  setInterval(checkDueCapsules, 60000);
+}
+
+// --- View Navigation ---
+function showView(name) {
+  currentView = name;
+  document.getElementById('cal-view').style.display = name === 'cal' ? 'flex' : 'none';
+  document.getElementById('editor-view').classList.toggle('active', name === 'editor');
+  document.getElementById('btn-cal').classList.toggle('active', name === 'cal');
+  document.getElementById('btn-canvas').classList.toggle('active', name === 'editor');
+  if (name === 'editor') { initEditor(); }
+}
+
+function showEditor(date) {
+  selectedDate = date;
+  if (!fabricCanvas) initEditor();
+  const key = dateKey(date);
+  const days = ['日','一','二','三','四','五','六'];
+  document.getElementById('et-date').innerHTML =
+    `${date.getFullYear()} 年 ${date.getMonth()+1} 月 ${date.getDate()} 日 <span>星期${days[date.getDay()]}</span>`;
+  loadEntry(key);
+  showView('editor');
+}
+
+function saveAndBack() {
+  if (selectedDate) saveEntry();
+  showView('cal');
+  renderCalendar();
+}
+
+// --- Calendar ---
+function renderCalendar() {
+  const grid = document.getElementById('cal-grid');
+  // Keep dow headers
+  const dows = grid.querySelectorAll('.cal-dow');
+  grid.innerHTML = '';
+  dows.forEach(d => grid.appendChild(d));
+
+  const y = currentYear, m = currentMonth;
+  document.getElementById('cal-title').textContent = `${y} 年 ${m+1} 月`;
+
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  // Padding before first day
+  for (let i = 0; i < firstDay; i++) {
+    const em = document.createElement('div');
+    em.className = 'cal-cell cal-cell-empty';
+    grid.appendChild(em);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(y, m, d);
+    const key = dateKey(date);
+    const isToday = date.getTime() === today.getTime();
+    const hasEntry = !!entries[key];
+    const hasCapsule = !!capsules[key] && !capsules[key].opened;
+
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (isToday ? ' today' : '') + (hasEntry ? ' has-entry' : '') + (hasCapsule ? ' has-capsule' : '');
+    cell.innerHTML = `
+      <div class="cd-num">${d}</div>
+      ${hasEntry ? `<div class="cd-thumb">${entries[key].mood ? WEATHER_MOOD[entries[key].mood]?.emoji || '📝' : '📝'}</div>` : ''}
+    `;
+    cell.onclick = () => showEditor(date);
+    grid.appendChild(cell);
+  }
+}
+
+function calNav(dir) {
+  if (dir === 0) { currentYear = new Date().getFullYear(); currentMonth = new Date().getMonth(); }
+  else { currentMonth += dir; if (currentMonth > 11) { currentMonth = 0; currentYear++; } if (currentMonth < 0) { currentMonth = 11; currentYear--; } }
+  renderCalendar();
+}
+
+function dateKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// --- Fabric.js Canvas ---
+function initEditor() {
+  const wrap = document.getElementById('canvasWrap');
+  const W = 640, H = 900;
+  fabricCanvas = new fabric.Canvas('mainCanvas', {
+    width: W, height: H,
+    backgroundColor: '#fefefe',
+    selection: true
+  });
+  fabricCanvas.renderAll();
+
+  fabricCanvas.on('object:selected', e => { /* noop for now */ });
+}
+
+function loadEntry(key) {
+  if (!fabricCanvas) return;
+  fabricCanvas.clear();
+  const entry = entries[key];
+  if (entry && entry.canvas) {
+    try {
+      fabricCanvas.loadFromJSON(entry.canvas, () => fabricCanvas.renderAll());
+    } catch(e) { console.warn('loadFromJSON error:', e); }
+  }
+}
+
+function saveEntry() {
+  if (!fabricCanvas || !selectedDate) return;
+  const key = dateKey(selectedDate);
+  const mood = fabricCanvas.getObjects().find(o => o._mood) ? fabricCanvas.getObjects().find(o => o._mood)._mood : null;
+  entries[key] = {
+    date: key,
+    canvas: fabricCanvas.toJSON(),
+    mood: mood,
+    updatedAt: Date.now()
+  };
+  saveData();
+}
+
+// --- Tools ---
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('tl-' + tool)?.classList.add('on');
+  closePanel();
+
+  if (tool === 'text') {
+    const t = new fabric.IText('点击输入文字……', {
+      left: 120, top: 200,
+      fontFamily: 'ZCOOL XiaoWei, Noto Serif SC',
+      fontSize: 18, fill: '#2c2825',
+      width: 200
+    });
+    fabricCanvas.add(t);
+    fabricCanvas.setActiveObject(t);
+    t.enterEditing();
+    fabricCanvas.renderAll();
+    currentTool = null;
+    document.getElementById('tl-text').classList.remove('on');
+  }
+}
+
+function togglePanel(name) {
+  const panel = document.getElementById('rightPanel');
+  if (activePanel === name) { closePanel(); return; }
+  activePanel = name;
+  panel.classList.add('open');
+
+  if (name === 'sticker') renderStickerPanel();
+  else if (name === 'ai') renderAIPanel();
+  else if (name === 'weather') renderWeatherPanel();
+}
+
+function closePanel() {
+  activePanel = null;
+  document.getElementById('rightPanel').classList.remove('open');
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('on'));
+}
+
+function renderStickerPanel() {
+  const panel = document.getElementById('rightPanel');
+  const cats = [
+    { title: '天气', items: ['☀️','🌤️','⛅','🌥️','☁️','🌧️','⛈️','🌨️','🌙','⭐'] },
+    { title: '心情', items: ['😊','😢','😡','😰','🥰','😴','😌','🤩','🥺','😤'] },
+    { title: '植物', items: ['🌸','🌺','🌻','🌷','🌹','🌿','🍀','🌾','🍃','🪴'] },
+    { title: '食物', items: ['🍎','🍰','☕','🍵','🍜','🍣','🍕','🍦','🍪','🍫'] },
+    { title: '装饰', items: ['💕','🎀','🎈','🎨','✂️','📒','✏️','🖊️','💌','🔖'] },
+  ];
+  let html = '';
+  cats.forEach(cat => {
+    html += `<div class="panel-section">
+      <div class="ps-title">${cat.title}</div>
+      <div class="sticker-grid">`;
+    cat.items.forEach(s => {
+      html += `<div class="sticker-item" onclick="addSticker('${s}')">${s}</div>`;
+    });
+    html += '</div></div>';
+  });
+  panel.innerHTML = html;
+}
+
+function renderAIPanel() {
+  const panel = document.getElementById('rightPanel');
+  panel.innerHTML = `
+    <div class="panel-section">
+      <div class="ps-title">✨ AI 贴纸</div>
+      <div class="ai-gen">
+        <input id="aiPrompt" placeholder="输入关键词，如：可爱的兔子、森林、日系">
+        <button class="btn btn-primary" style="width:100%" onclick="genSticker()">生成并加入画布</button>
+      </div>
+      <div id="aiStatus" style="margin-top:10px;font-size:12px;color:var(--ink3);display:none">
+        <div class="dots"><span></span><span></span><span></span></div>
+        生成中…
+      </div>
+    </div>
+    <div class="panel-section" style="margin-top:8px">
+      <div class="ps-title">提示</div>
+      <div style="font-size:12px;color:var(--ink2);line-height:1.7">
+        描述你想要的画面，AI 会生成一张卡通风格贴纸加入画布。如"披萨"、"雨天咖啡馆"、"抱着猫的女孩"等。
+      </div>
+    </div>
+  `;
+}
+
+function renderWeatherPanel() {
+  const panel = document.getElementById('rightPanel');
+  const moods = [
+    { k: 'sunny', label: '晴', emoji: '☀️' },
+    { k: 'cloudy', label: '多云', emoji: '⛅' },
+    { k: 'rainy', label: '雨', emoji: '🌧️' },
+    { k: 'snowy', label: '雪', emoji: '🌨️' },
+    { k: 'happy', label: '开心', emoji: '😊' },
+    { k: 'sad', label: '难过', emoji: '😢' },
+    { k: 'angry', label: '愤怒', emoji: '😡' },
+    { k: 'anxious', label: '焦虑', emoji: '😰' },
+    { k: 'grateful', label: '感恩', emoji: '🥰' },
+    { k: 'peaceful', label: '平静', emoji: '😌' },
+  ];
+  const key = selectedDate ? dateKey(selectedDate) : null;
+  const curMood = key && entries[key]?.mood;
+  panel.innerHTML = `
+    <div class="panel-section">
+      <div class="ps-title">🌤 天气 & 心情</div>
+      <div class="mood-row">
+        ${moods.map(m => `<div class="mood-chip ${curMood===m.k?'on':''}" onclick="pickMood('${m.k}','${m.emoji}')">${m.emoji} ${m.label}</div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+const WEATHER_MOOD = {
+  sunny:{emoji:'☀️'},cloudy:{emoji:'⛅'},rainy:{emoji:'🌧️'},snowy:{emoji:'🌨️'},
+  happy:{emoji:'😊'},sad:{emoji:'😢'},angry:{emoji:'😡'},anxious:{emoji:'😰'},
+  grateful:{emoji:'🥰'},peaceful:{emoji:'😌'}
+};
+
+function pickMood(k, emoji) {
+  document.querySelectorAll('.mood-chip').forEach(c => c.classList.remove('on'));
+  event.target.closest('.mood-chip').classList.add('on');
+  // Add as a text element on canvas
+  const t = new fabric.Text(emoji, { left: 20, top: 20, fontSize: 28, selectable: true });
+  t._mood = k;
+  fabricCanvas.add(t);
+  fabricCanvas.renderAll();
+  saveEntry();
+}
+
+function addSticker(emoji) {
+  const t = new fabric.Text(emoji, { left: 100, top: 200, fontSize: 40, selectable: true });
+  fabricCanvas.add(t);
+  fabricCanvas.setActiveObject(t);
+  fabricCanvas.renderAll();
+}
+
+async function genSticker() {
+  const prompt = document.getElementById('aiPrompt').value.trim();
+  if (!prompt) { toast('请输入关键词'); return; }
+  document.getElementById('aiStatus').style.display = 'block';
+  try {
+    const res = await fetch('https://sub2api.tryx402.xyz/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'sk-728c11d8b39d4e97777a17267d6703bc2a64b2089594544b83b61fa47e856897', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300,
+        system: '你是一个贴纸生成器。用户输入关键词，你生成一段简洁的英文 prompt，用于 AI 绘图模型生成日系卡通风格贴纸。要求：输出纯英文 prompt，不超过 80 字符，只描述画面元素和风格，不要解释。',
+        messages: [{ role: 'user', content: prompt }] })
+    });
+    const d = await res.json();
+    const text = d.content?.map(c => c.text || '').join('') || '';
+    // For Phase 1, just add a styled text sticker as placeholder
+    // Phase 2 will integrate actual image generation
+    const emoji = ['✨','🌸','💫','🎀','🌿'][Math.floor(Math.random()*5)];
+    const t = new fabric.Text(emoji, { left: 150, top: 250, fontSize: 50, selectable: true });
+    fabricCanvas.add(t);
+    fabricCanvas.renderAll();
+    toast('已加入画布（AI 图片生成 Phase 2 支持）');
+    closePanel();
+  } catch(e) { toast('生成失败，请重试'); }
+  document.getElementById('aiStatus').style.display = 'none';
+}
+
+// --- Canvas Actions ---
+function deleteSelected() {
+  const obj = fabricCanvas?.getActiveObject();
+  if (obj) { fabricCanvas.remove(obj); fabricCanvas.renderAll(); }
+}
+function undo() { /* Phase 2: implement with history */ fabricCanvas?.undo?.(); }
+function redo() { /* Phase 2 */ }
+
+// --- Capsule ---
+let pendingCapsule = {};
+
+function sealCapsule() {
+  if (!selectedDate) return;
+  document.getElementById('capsuleModal').classList.add('open');
+  // Set default date to 1 month from now
+  const oneMonth = new Date(selectedDate);
+  oneMonth.setMonth(oneMonth.getMonth() + 1);
+  document.getElementById('cmDate').value = oneMonth.toISOString().slice(0, 10);
+  document.getElementById('cmMsg').value = '';
+  document.getElementById('cmQ').value = '';
+}
+
+function closeCapsuleModal() {
+  document.getElementById('capsuleModal').classList.remove('open');
+}
+
+function confirmCapsule() {
+  if (!selectedDate) return;
+  const key = dateKey(selectedDate);
+  const sel = document.querySelector('.cm-opt.on');
+  let openDate;
+  if (sel?.dataset.v === 'custom') {
+    openDate = document.getElementById('cmDate').value;
+  } else {
+    const months = { month: 1, '3month': 3, '6month': 6, year: 12 };
+    const m = months[sel?.dataset.v] || 1;
+    const d = new Date(selectedDate);
+    d.setMonth(d.getMonth() + m);
+    openDate = d.toISOString().slice(0, 10);
+  }
+  capsules[key] = {
+    id: Date.now().toString(),
+    entryId: key,
+    message: document.getElementById('cmMsg').value.trim(),
+    question: document.getElementById('cmQ').value.trim(),
+    openDate,
+    opened: false
+  };
+  saveData();
+  saveEntry();
+  closeCapsuleModal();
+  toast('时刻已封存 ✉');
+  renderCalendar();
+  // Shake bunny to acknowledge
+  document.getElementById('bunnyIdle').classList.add('shake');
+  setTimeout(() => document.getElementById('bunnyIdle').classList.remove('shake'), 600);
+}
+
+// Capsule option selection
+document.querySelectorAll('.cm-opt').forEach(opt => {
+  opt.onclick = () => {
+    document.querySelectorAll('.cm-opt').forEach(o => o.classList.remove('on'));
+    opt.classList.add('on');
+    document.getElementById('cmDateRow').style.display = opt.dataset.v === 'custom' ? 'flex' : 'none';
+  };
+});
+
+function checkDueCapsules() {
+  const today = dateKey(new Date());
+  for (const key in capsules) {
+    const c = capsules[key];
+    if (!c.opened && c.openDate && c.openDate <= today) {
+      // Capsule is due!
+      triggerUnseal(key);
+      return; // Handle one at a time
+    }
+  }
+}
+
+function triggerUnseal(key) {
+  const c = capsules[key];
+  const msgEl = document.getElementById('usMsg').querySelector('p');
+  const qEl = document.getElementById('usQ');
+  const qSection = document.getElementById('usQuestion');
+  msgEl.textContent = c.message || '这是我封存的一个时刻……';
+  if (c.question) {
+    qSection.style.display = 'block';
+    qEl.textContent = c.question;
+  } else {
+    qSection.style.display = 'none';
+  }
+  document.getElementById('unseal-view').classList.add('open');
+  // Remember which capsule is being unsealed
+  document.getElementById('unseal-view').dataset.key = key;
+  // Trigger bunny
+  bcBubble('有东西在等你 ✉');
+}
+
+function closeUnseal() {
+  const key = document.getElementById('unseal-view').dataset.key;
+  if (key && capsules[key]) {
+    capsules[key].opened = true;
+    saveData();
+  }
+  document.getElementById('unseal-view').classList.remove('open');
+  // Open editor for today
+  showEditor(new Date());
+  renderCalendar();
+}
+
+// --- Bunny Chat ---
+function toggleBunny() {
+  const chat = document.getElementById('bunnyChat');
+  const idle = document.getElementById('bunnyIdle');
+  chat.classList.toggle('open');
+  idle.style.display = chat.classList.contains('open') ? 'none' : 'flex';
+  if (chat.classList.contains('open')) {
+    document.getElementById('bcInput').focus();
+  }
+}
+
+function bcKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); bcSend(); }
+}
+
+async function bcSend() {
+  const inp = document.getElementById('bcInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  bcBubble(text, true); // user bubble
+  const reply = await bcAI(text);
+  bcBubble(reply);
+}
+
+async function bcAI(text) {
+  try {
+    const res = await fetch('https://sub2api.tryx402.xyz/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': 'sk-728c11d8b39d4e97777a17267d6703bc2a64b2089594544b83b61fa47e856897', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 200,
+        system: '你是叙事疗法取向的心理陪伴者，代号"兔子"。你温柔、简短、充满好奇，像朋友一样陪伴。不给建议，而是提问；不评判，而是理解。说话风格：简短温暖，每次不超过80字。全程中文。',
+        messages: [{ role: 'user', content: text }] })
+    });
+    const d = await res.json();
+    return d.content?.map(c => c.text || '').join('') || '……嗯，我在听。';
+  } catch(e) { return '……嗯，我在听。'; }
+}
+
+function bcBubble(text, isUser = false) {
+  const chat = document.getElementById('bunnyChat');
+  const b = document.createElement('div');
+  b.className = 'bc-bubble';
+  b.style.cssText = isUser ? 'background:var(--accent);color:#fff;border-color:var(--accent);' : '';
+  b.textContent = text;
+  chat.insertBefore(b, document.getElementById('bcInput').parentElement);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// --- Toast ---
+function toast(msg) {
+  document.getElementById('tBody').textContent = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// --- Boot ---
+init();
+</script>
+</body>
+</html>
